@@ -30,8 +30,21 @@ def _path_exists(file_path: str):
         return FileNotFoundError(f"No file found at path: {file_path}")
 
 
-START_TIME = time()
-STEP_TIME = time()
+def intpercent(myinteger: int, percent: float, add_px):
+    """Returns a percent of an integer as an integer.
+
+    Args:
+        myinteger (int): Integer to take percent of.
+        percent (float): Percent to return.
+        add_px (int): Add scalar amount to final value.
+
+    Returns:
+        output (int): Final value
+    """
+    output = round((myinteger * percent), 0)
+    output = int(output + add_px)
+
+    return output
 
 
 class RealmParser:
@@ -70,18 +83,18 @@ class RealmParser:
             "scoreboard": {
                 "mask_coords": {
                     "y1": "0",
-                    "y2": "self.intpercent(self.VOD_Props['HEIGHT'], 0.0303, 1)",
-                    "x1": "int(self.VOD_Props['WIDTH'] - self.intpercent(self.VOD_Props['HEIGHT'], 0.396, 1))",
-                    "x2": "int(self.VOD_Props['WIDTH'])",
+                    "y2": "intpercent(height, 0.0303, 1)",
+                    "x1": "int(width - intpercent(height, 0.396, 1))",
+                    "x2": "int(width)",
                 },
                 "ocr_whitelist": "0123456789:/",
             },
             "map": {
                 "mask_coords": {
-                    "y1": "",
-                    "y2": "",
-                    "x1": "",
-                    "x2": "",
+                    "y1": "intpercent(height,0.741,1)",
+                    "y2": "int(height)",
+                    "x1": "int(width- intpercent(height,0.259,1))",
+                    "x2": "int(width)",
                 },
                 "mirror_mask_coords": {},
             },
@@ -187,7 +200,7 @@ class RealmParser:
         # check if is img
         if have_reader:
             # file is img
-            self.parse_type = np.npdarray
+            self.parse_type = np.ndarray
             self.current_img = cv.imread(realm_path)
             self.realm_path = realm_path
 
@@ -265,7 +278,7 @@ class VodParse(RealmParser):
         # TODO: find out whether you can get a list of images from a video instead of parsing them one at a time
         pass
 
-    def __resize_by_pxpercent(
+    def resize_by_pxpercent(
         self, input_img, desired_px=None, w_or_h=None, scale_percent=None
     ):
         """Resize an image by pixels or percent, w.r.t. width or height.
@@ -279,6 +292,7 @@ class VodParse(RealmParser):
         Returns:
             cv.img: returns resized cv img
         """
+        # TODO rewrite this function such that the required inputs are more clear (they're binary) before implimenting map
         if w_or_h == "w":
             scale_percent = desired_px / input_img.shape[1] * 100
         elif w_or_h == "h":
@@ -291,23 +305,7 @@ class VodParse(RealmParser):
 
         return resized
 
-    def intpercent(self, myinteger: int, percent: float, add_px):
-        """Returns a percent of an integer as an integer.
-
-        Args:
-            myinteger (int): Integer to take percent of.
-            percent (float): Percent to return.
-            add_px (int): Add scalar amount to final value.
-
-        Returns:
-            output (int): Final value
-        """
-        output = round((myinteger * percent), 0)
-        output = int(output + add_px)
-
-        return output
-
-    def __get_mask(self, frame, subregion=None):
+    def get_mask(self, frame, height=None, width=None, subregion=None):
         """Get mask from region_cfg or subregion_cfg.
 
         Args:
@@ -363,10 +361,10 @@ class VodParse(RealmParser):
         frame_grey = cv.cvtColor(frame_rgb, cv.COLOR_RGB2GRAY)
 
         # mask to field
-        region_mask = self.__get_mask(frame_grey)
+        region_mask = self.get_mask(frame_grey)
 
         # pre process field
-        resized_region_img = self.__resize_by_pxpercent(region_mask, 1000, "w")
+        resized_region_img = self.resize_by_pxpercent(region_mask, 1000, "w")
         resized_blurred_region_img = cv.GaussianBlur(resized_region_img, (5, 5), 0)
         self.__cache_img(resized_blurred_region_img, self.input_region)
 
@@ -378,7 +376,7 @@ class VodParse(RealmParser):
 
             # crop to subregion & cache crop... lol "cache" crop
             # TODO optimize this by returning a list of cropped imgs instead of iteratively cropping
-            subregion_mask = self.__get_mask(
+            subregion_mask = self.get_mask(
                 resized_blurred_region_img, subregion=subregion
             )
             self.__cache_img(subregion_mask, subregion)
