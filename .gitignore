@@ -114,4 +114,5 @@ dmypy.json
 .pyre/
 *.mp4
 *.mov
+*.avi
 game.cfg

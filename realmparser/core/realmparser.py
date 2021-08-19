@@ -13,6 +13,8 @@ import easyocr
 import numpy as np
 import pandas as pd
 
+START_TIME = time()
+
 
 def _path_exists(file_path: str):
     """Checks if file exists at the entered path.
@@ -30,7 +32,7 @@ def _path_exists(file_path: str):
         return FileNotFoundError(f"No file found at path: {file_path}")
 
 
-def intpercent(myinteger: int, percent: float, add_px):
+def intpercent(myinteger: int, percent: float, add_px=0):
     """Returns a percent of an integer as an integer.
 
     Args:
@@ -41,7 +43,7 @@ def intpercent(myinteger: int, percent: float, add_px):
     Returns:
         output (int): Final value
     """
-    output = round((myinteger * percent), 0)
+    output = round((myinteger * percent), 2)
     output = int(output + add_px)
 
     return output
@@ -91,15 +93,24 @@ class RealmParser:
             },
             "map": {
                 "mask_coords": {
-                    "y1": "intpercent(height,0.741,1)",
+                    "y1": "intpercent(height,0.74125)",
                     "y2": "int(height)",
-                    "x1": "int(width- intpercent(height,0.259,1))",
+                    "x1": "int(width - intpercent(height,0.2587,1))",
                     "x2": "int(width)",
                 },
                 "mirror_mask_coords": {},
             },
+            "player_hud": {
+                "mask_coords": {
+                    "y1": "",
+                    "y2": "",
+                    "x1": "",
+                    "x2": "",
+                },
+            },
         }
         # configuration containing the settings for cropping & getting best ocr reads from each subregion in a region
+        # TODO add subregions for map: turret plates,{role}_t1_turret, {role}_t2_turret, {role}_inhib_turret, nexus_turret
         self.subregion_cfg = {
             "scoreboard": {
                 "KDA": {
@@ -171,6 +182,7 @@ class RealmParser:
 
         config = configparser.ConfigParser()
         if _path_exists(lol_cfg_path):
+            # TODO make a for loop of try so that failing one fetch doesn't fail all of them
             try:
                 config.read(lol_cfg_path)
                 self.lol_cfg["height"] = int(config["General"]["Height"])
@@ -178,6 +190,12 @@ class RealmParser:
                 self.lol_cfg["mapscale"] = float(config["HUD"]["MinimapScale"])
                 self.lol_cfg["globscale"] = float(config["HUD"]["GlobalScale"])
                 self.lol_cfg["mapflipped"] = bool(config["HUD"]["FlipMiniMap"])
+                self.lol_cfg["relativeteamcolor"] = str(
+                    config["General"]["RelativeTeamColors"]
+                )
+                # ["HUD"]["ShowSummonerNames"]
+                # ["HUD"]["ShowSummonerNamesInScoreboard"]
+                # ["HUD"]["NumericCooldownFormat"]
 
                 # if it made it through those steps w/ no error
                 self.lol_cfg_path = lol_cfg_path
@@ -279,23 +297,24 @@ class VodParse(RealmParser):
         pass
 
     def resize_by_pxpercent(
-        self, input_img, desired_px=None, w_or_h=None, scale_percent=None
+        self, input_img, desired_px=None, scale_wrt_w_or_h="h", scale_percent=None
     ):
         """Resize an image by pixels or percent, w.r.t. width or height.
 
         Args:
             input_img (cv.img): cv2 loaded img to resize
             desired_px (int, optional): Pixel size to resize to, can only use if not using percent. Defaults to None.
-            w_or_h (str, optional): Resize "width" or "height". Defaults to None.
+            scale_wrt_w_or_h (str, optional): Resize with respect to "width" or "height". Defaults to None.
             scale_percent (int, optional): Percent as int to scale to, can only use if not using pixels. Defaults to None.
 
         Returns:
             cv.img: returns resized cv img
         """
         # TODO rewrite this function such that the required inputs are more clear (they're binary) before implimenting map
-        if w_or_h == "w":
+        # Note for Reference: shape[0]=height; shape[1]=width
+        if scale_wrt_w_or_h == "w":
             scale_percent = desired_px / input_img.shape[1] * 100
-        elif w_or_h == "h":
+        elif scale_wrt_w_or_h == "h":
             scale_percent = desired_px / input_img.shape[0] * 100
 
         width = int(input_img.shape[1] * scale_percent / 100)
